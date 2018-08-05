@@ -1,0 +1,12 @@
+[package]
+name = "tui"
+version = "0.1.0"
+authors = ["Maksim <maksim.levental@gmail.com>"]
+
+[dependencies]
+cursive = "0.9"
+clap = "2.32.0"
+spinners = "1.0.0"
+chrono = "0.4"
+colored = "1.6"
+regex = "1"
