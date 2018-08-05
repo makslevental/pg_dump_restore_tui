@@ -7,13 +7,11 @@ use std::io::{self, Read, Write};
 use std::fmt::Write as OtherWrite;
 
 use colored::*;
-use spinners::{Spinner, Spinners};
 use chrono::prelude::*;
 use regex::RegexSetBuilder;
 
 pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
 //    #PGPASSWORD=***REMOVED*** PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=1 --pset pager=off -h localhost -U postgres -f dump.data.sql
-    let sp = Spinner::new(Spinners::Dots9, "dumping database".into());
     let utc: DateTime<Utc> = Utc::now();
     let dump_file_fp = format!("tuf_db_postgres_dump.{}.sql", utc.format("%Y_%m_%dT%H_%M_%S").to_string());
     let output = Command::new(bin)
@@ -27,7 +25,6 @@ pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
         .output()
         .expect(&"failed to execute dump".red().bold().to_string());
 
-    sp.stop();
 
     match output.status.code() {
         Some(0) => {
@@ -62,7 +59,6 @@ pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
 }
 
 pub fn restore(restore_file_fp: String, bin: String, host: String, user: String, pass: String, port: u32) {
-    let sp = Spinner::new(Spinners::Dots9, "restoring database".into());
     let utc: DateTime<Utc> = Utc::now();
     let output = Command::new(bin)
         .env("PGPASSWORD", pass)
@@ -74,8 +70,6 @@ pub fn restore(restore_file_fp: String, bin: String, host: String, user: String,
         .args(&["-f", &restore_file_fp])
         .output()
         .expect(&"failed to execute restore".red().bold().to_string());
-
-    sp.stop();
 
 
     match output.status.code() {

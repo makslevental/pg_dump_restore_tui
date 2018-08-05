@@ -5,7 +5,6 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate clap;
-extern crate spinners;
 extern crate chrono;
 extern crate colored;
 extern crate regex;
@@ -36,22 +35,6 @@ fn main() {
     }
 
     tui::display()
-//    pg::dump(
-//        &config.pg_dumpall_bin.clone().unwrap(),
-//        &config.pg_host.clone().unwrap(),
-//        &config.pg_user.clone().unwrap(),
-//        &config.pg_pass.clone().unwrap(),
-//        config.pg_port.clone().unwrap(),
-//    );
-//
-//    pg::restore(
-//        "tuf_db_postgres_dump.2018_08_05T19_48_40.sql",
-//        &config.psql_bin.clone().unwrap(),
-//        &config.pg_host.clone().unwrap(),
-//        &config.pg_user.clone().unwrap(),
-//        &config.pg_pass.clone().unwrap(),
-//        config.pg_port.clone().unwrap(),
-//    )
 }
 
 
