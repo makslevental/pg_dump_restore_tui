@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
-extern crate cursive;
 extern crate clap;
 extern crate spinners;
 extern crate chrono;
@@ -20,8 +19,6 @@ use std::fmt::Write as OtherWrite;
 use colored::*;
 use spinners::{Spinner, Spinners};
 use clap::{Arg, App, ArgMatches};
-use cursive::Cursive;
-use cursive::views::Dialog;
 use chrono::prelude::*;
 use regex::RegexSetBuilder;
 
@@ -81,6 +78,7 @@ fn main() {
         .get_matches();
 
 
+    display()
 //    dump(
 //        matches.value_of("pg_dumpall_bin").unwrap(),
 //        matches.value_of("pg_host").unwrap(),
@@ -89,13 +87,13 @@ fn main() {
 //        matches.value_of("pg_port").unwrap(),
 //    );
 
-    restore(
-        "tuf_db_postgres_dump.2018_08_05T04_18_18.sql",
-        matches.value_of("pg_host").unwrap(),
-        matches.value_of("pg_user").unwrap(),
-        matches.value_of("pg_pass").unwrap(),
-        matches.value_of("pg_port").unwrap(),
-    )
+//    restore(
+//        "tuf_db_postgres_dump.2018_08_05T04_18_18.sql",
+//        matches.value_of("pg_host").unwrap(),
+//        matches.value_of("pg_user").unwrap(),
+//        matches.value_of("pg_pass").unwrap(),
+//        matches.value_of("pg_port").unwrap(),
+//    )
 }
 
 fn dump(bin: &str, host: &str, user: &str, pass: &str, port: &str) {
@@ -174,35 +172,60 @@ fn restore(restore_file_fp: &str, host: &str, user: &str, pass: &str, port: &str
         }
     }
 }
-//    println!("{:?}", output)
-//    if !output.status.success() {
-//        println!("error: {}", String::from_utf8_lossy(&output.stderr));
-//        println!("status: {}", output.status);
-//        exit(1)
-//    } else {
-//        println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-//    }
-//    let mut siv = Cursive::default();
-//
-//    siv.add_layer(Dialog::text("This is a survey!\nPress <Next> when you're ready.")
-//        .title("Important survey")
-//        .button("Next", show_next));
-//
-//    siv.run();
-//}
-//
-//fn show_next(s: &mut Cursive) {
-//    s.pop_layer();
-//    s.add_layer(Dialog::text("Did you do the thing?")
-//        .title("Question 1")
-//        .button("Yes!", |s| show_answer(s, "I knew it! Well done!"))
-//        .button("No!", |s| show_answer(s, "I knew you couldn't be trusted!"))
-//        .button("Uh?", |s| s.add_layer(Dialog::info("Try again!"))));
-//}
-//
-//fn show_answer(s: &mut Cursive, msg: &str) {
-//    s.pop_layer();
-//    s.add_layer(Dialog::text(msg)
-//        .title("Results")
-//        .button("Finish", |s| s.quit()));
 
+extern crate cursive;
+
+use cursive::align::HAlign;
+use cursive::event::EventResult;
+use cursive::traits::*;
+use cursive::views::{Dialog, OnEventView, SelectView, TextView};
+use cursive::Cursive;
+
+// We'll use a SelectView here.
+//
+// A SelectView is a scrollable list of items, from which the user can select
+// one.
+
+fn display() {
+    let mut select = SelectView::new().h_align(HAlign::Center);
+
+    // Read the list of cities from separate file, and fill the view with it.
+    // (We include the file at compile-time to avoid runtime read errors.)
+    let content = include_str!("./assets/cities.txt");
+    select.add_all_str(content.lines());
+
+    // Sets the callback for when "Enter" is pressed.
+    select.set_on_submit(show_next_window);
+
+    // Let's override the `j` and `k` keys for navigation
+    let select = OnEventView::new(select)
+        .on_pre_event_inner('k', |s| {
+            s.select_up(1);
+            Some(EventResult::Consumed(None))
+        })
+        .on_pre_event_inner('j', |s| {
+            s.select_down(1);
+            Some(EventResult::Consumed(None))
+        });
+
+    let mut siv = Cursive::default();
+
+    // Let's add a BoxView to keep the list at a reasonable size
+    // (it can scroll anyway).
+    siv.add_layer(
+        Dialog::around(select.scrollable().fixed_size((20, 10)))
+            .title("Where are you from?"),
+    );
+
+    siv.run();
+}
+
+// Let's put the callback in a separate function to keep it clean,
+// but it's not required.
+fn show_next_window(siv: &mut Cursive, city: &str) {
+    siv.pop_layer();
+    let text = format!("{} is a great city!", city);
+    siv.add_layer(
+        Dialog::around(TextView::new(text)).button("Quit", |s| s.quit()),
+    );
+}
