@@ -11,7 +11,7 @@ use spinners::{Spinner, Spinners};
 use chrono::prelude::*;
 use regex::RegexSetBuilder;
 
-pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32) {
+pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
 //    #PGPASSWORD=***REMOVED*** PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=1 --pset pager=off -h localhost -U postgres -f dump.data.sql
     let sp = Spinner::new(Spinners::Dots9, "dumping database".into());
     let utc: DateTime<Utc> = Utc::now();
@@ -19,9 +19,9 @@ pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32) {
     let output = Command::new(bin)
         .env("PGPASSWORD", pass)
         .env("PGOPTIONS", "--client-min-messages=warning")
-        .args(&["-h", host])
+        .args(&["-h", &host])
         .arg("-c")
-        .args(&["-U", user])
+        .args(&["-U", &user])
         .args(&["-p", &port.to_string()])
         .args(&["-f", &dump_file_fp])
         .output()
@@ -61,17 +61,17 @@ pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32) {
     }
 }
 
-pub fn restore(restore_file_fp: &str, bin: &str, host: &str, user: &str, pass: &str, port: u32) {
+pub fn restore(restore_file_fp: String, bin: String, host: String, user: String, pass: String, port: u32) {
     let sp = Spinner::new(Spinners::Dots9, "restoring database".into());
     let utc: DateTime<Utc> = Utc::now();
     let output = Command::new(bin)
         .env("PGPASSWORD", pass)
         .env("PGOPTIONS", "--client-min-messages=warning")
         .args(&["-v", "ON_ERROR_STOP=1"])
-        .args(&["-h", host])
-        .args(&["-U", user])
+        .args(&["-h", &host])
+        .args(&["-U", &user])
         .args(&["-p", &port.to_string()])
-        .args(&["-f", restore_file_fp])
+        .args(&["-f", &restore_file_fp])
         .output()
         .expect(&"failed to execute restore".red().bold().to_string());
 
