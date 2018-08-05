@@ -1,14 +1,16 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
-extern crate clap;
 extern crate spinners;
 extern crate chrono;
 extern crate colored;
 extern crate regex;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate clap;
 
 use std::process::{Command, exit};
-use std::error::Error;
 use std::process::ExitStatus;
 use std::str;
 use std::env;
@@ -18,67 +20,19 @@ use std::fmt::Write as OtherWrite;
 
 use colored::*;
 use spinners::{Spinner, Spinners};
-use clap::{Arg, App, ArgMatches};
 use chrono::prelude::*;
 use regex::RegexSetBuilder;
 
-type Result<T> = std::result::Result<T, Error>;
+
+mod config;
 
 fn main() {
-    let matches = App::new("My Super Program")
-        .version("0.01")
-        .author("Maksim L <maksim.levental@gmail.com>")
-        .about("Ergonomically dumps and restores postgres server")
-        .help_short("H")
-        .arg(
-            Arg::with_name("pg_pass")
-                .short("w")
-                .long("pg-pass")
-                .required(true)
-                .value_name("PASS")
-                .help("Postgres user password")
-                .takes_value(true)
-        )
-        .arg(
-            Arg::with_name("pg_host")
-                .short("h")
-                .long("pg-host")
-                .value_name("HOST")
-                .default_value("172.18.0.67")
-                .help("Host where postgres lives")
-                .takes_value(true)
-        )
-        .arg(
-            Arg::with_name("pg_user")
-                .short("u")
-                .long("pg-user")
-                .default_value("postgres")
-                .value_name("USER")
-                .help("Postgres user")
-                .takes_value(true)
-        )
-        .arg(
-            Arg::with_name("pg_port")
-                .short("p")
-                .long("pg-port")
-                .default_value("6174")
-                .value_name("PORT")
-                .help("Postgres port")
-                .takes_value(true)
-        )
-        .arg(
-            Arg::with_name("pg_dumpall_bin")
-                .short("b")
-                .long("pg-dumpall-bin")
-                .default_value("/usr/bin/pg_dumpall")
-                .value_name("BIN_PATH")
-                .help("pg_dumpall bin filepath")
-                .takes_value(true)
-        )
-        .get_matches();
+    match config::load_config() {
+        Ok(c) => println!("{:#?}", c),
+        Err(e) => println!("{}: {}", "error".bold().red(), e)
+    };
 
-
-    display()
+//    display()
 //    dump(
 //        matches.value_of("pg_dumpall_bin").unwrap(),
 //        matches.value_of("pg_host").unwrap(),

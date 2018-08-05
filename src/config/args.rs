@@ -1,0 +1,71 @@
+extern crate clap;
+
+use self::clap::{Arg, App, ArgMatches};
+
+pub fn load_args() -> ArgMatches<'static> {
+    App::new("My Super Program")
+        .version("0.01")
+        .author("Maksim L <maksim.levental@gmail.com>")
+        .about("Ergonomically dumps and restores postgres server")
+        .help_short("H")
+        .arg(
+            Arg::with_name("config_file")
+                .short("c")
+                .long("config_file")
+                .required(false)
+                .default_value("config.toml")
+                .value_name("CONFIG_PATH")
+                .help("Config file path")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("pg_pass")
+                .short("w")
+                .long("pg-pass")
+                .required(false)
+                .value_name("PASS")
+                .help("Postgres user password")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("pg_host")
+                .short("h")
+                .long("pg-host")
+                .value_name("HOST")
+                .help("Host where postgres lives")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("pg_user")
+                .short("u")
+                .long("pg-user")
+                .value_name("USER")
+                .help("Postgres user")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("pg_port")
+                .short("p")
+                .long("pg-port")
+                .value_name("PORT")
+                .help("Postgres port")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("psql_bin")
+                .short("q")
+                .long("psql-bin")
+                .value_name("PSQL_BIN_PATH")
+                .help("psql bin filepath")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("pg_dumpall_bin")
+                .short("d")
+                .long("pg-dumpall-bin")
+                .value_name("PG_DUMPALL_BIN_PATH")
+                .help("pg_dumpall bin filepath")
+                .takes_value(true)
+        )
+        .get_matches()
+}
