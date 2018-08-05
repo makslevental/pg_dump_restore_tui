@@ -1,19 +1,43 @@
-extern crate toml;
-extern crate colored;
-
 use std::fs::File;
 use std::io::{self, Read, Write};
+use toml;
 
 mod args;
 
-#[derive(Debug, Deserialize)]
-pub struct Config {
-    pg_host: String,
-    pg_pass: String,
-    pg_user: String,
-    pg_port: u32,
-    psql_bin: String,
-    pg_dumpall_bin: String,
+// macro that expands into a bunch of ifs that check if any of the fields are None
+macro_rules! zoom_and_enhance {
+    ($(#[$struct_meta:meta])*
+    pub struct $name:ident { $(pub $fname:ident : $ftype:ty),* }) => {
+        $(#[$struct_meta])*
+        pub struct $name {
+            $(pub $fname: $ftype),*
+        }
+
+        impl $name {
+            pub fn missing_params(&self) -> Vec<String> {
+                let mut missing: Vec<String> = Vec::new();
+                // here's the expansion
+                $(
+                if self.$fname.is_none() {
+                    missing.push(stringify!($fname).to_string());
+                };
+                )*
+                missing
+            }
+        }
+    };
+}
+
+zoom_and_enhance! {
+    #[derive(Debug, Deserialize)]
+    pub struct Config {
+        pub pg_host: Option<String>,
+        pub pg_pass: Option<String>,
+        pub pg_user: Option<String>,
+        pub pg_port: Option<u32>,
+        pub psql_bin: Option<String>,
+        pub pg_dumpall_bin: Option<String>
+    }
 }
 
 pub fn load_config() -> Result<Config, String> {
@@ -29,46 +53,30 @@ pub fn load_config() -> Result<Config, String> {
             .map_err(|e| format!("config_file: {}", e.to_string()))?;
 
     let config_from_args = Config {
-        pg_host: args.value_of("pg_host").unwrap_or_default().to_string(),
-        pg_pass: args.value_of("pg_pass").unwrap_or_default().to_string(),
-        pg_user: args.value_of("pg_user").unwrap_or_default().to_string(),
-        pg_port: value_t!(args, "pg_port", u32).unwrap_or_default(),
-        psql_bin: args.value_of("psql_bin").unwrap_or_default().to_string(),
-        pg_dumpall_bin: args.value_of("pg_dumpall_bin").unwrap_or_default().to_string(),
+        pg_host: args.value_of("pg_host").map(|v| v.to_string()),
+        pg_pass: args.value_of("pg_pass").map(|v| v.to_string()),
+        pg_user: args.value_of("pg_user").map(|v| v.to_string()),
+        pg_port: {
+            match value_t!(args, "pg_port", u32) {
+                Err(_) => None,
+                Ok(v) => Some(v)
+            }
+        },
+        psql_bin: args.value_of("psql_bin").map(|v| v.to_string()),
+        pg_dumpall_bin: args.value_of("pg_dumpall_bin").map(|v| v.to_string()),
     };
 
     let union_args = Config {
-        pg_host: if config_from_args.pg_host.len() > 0 { config_from_args.pg_host } else { config_from_file.pg_host },
-        pg_pass: if config_from_args.pg_pass.len() > 0 { config_from_args.pg_pass } else { config_from_file.pg_pass },
-        pg_user: if config_from_args.pg_user.len() > 0 { config_from_args.pg_user } else { config_from_file.pg_user },
-        pg_port: if config_from_args.pg_port > 0 { config_from_args.pg_port } else { config_from_file.pg_port },
-        psql_bin: if config_from_args.psql_bin.len() > 0 { config_from_args.psql_bin } else { config_from_file.psql_bin },
-        pg_dumpall_bin: if config_from_args.pg_dumpall_bin.len() > 0 { config_from_args.pg_dumpall_bin } else { config_from_file.pg_dumpall_bin },
+        pg_host: config_from_args.pg_host.or(config_from_file.pg_host),
+        pg_pass: config_from_args.pg_pass.or(config_from_file.pg_pass),
+        pg_user: config_from_args.pg_user.or(config_from_file.pg_user),
+        pg_port: config_from_args.pg_port.or(config_from_file.pg_port),
+        psql_bin: config_from_args.psql_bin.or(config_from_file.psql_bin),
+        pg_dumpall_bin: config_from_args.pg_dumpall_bin.or(config_from_file.pg_dumpall_bin),
     };
 
-    match union_args.pg_host.len() * union_args.pg_pass.len() * union_args.pg_user.len() * union_args.pg_port as usize * union_args.psql_bin.len() * union_args.pg_dumpall_bin.len() {
-        0 => {
-            let mut missing_args: Vec<&str> = Vec::new();
-            if union_args.pg_host.len() == 0 {
-                missing_args.push("pg_host");
-            };
-            if union_args.pg_pass.len() == 0 {
-                missing_args.push("pg_pass");
-            };
-            if union_args.pg_user.len() == 0 {
-                missing_args.push("pg_user");
-            };
-            if union_args.pg_port == 0 {
-                missing_args.push("pg_port");
-            };
-            if union_args.psql_bin.len() == 0 {
-                missing_args.push("psql_bin");
-            };
-            if union_args.pg_dumpall_bin.len() == 0 {
-                missing_args.push("pg_dumpall_bin");
-            };
-            Err(format!("missing args: {}", missing_args.join(", ")))
-        },
-        _ => Ok(union_args)
+    match union_args.missing_params().len() {
+        0 => Ok(union_args),
+        _ => Err(format!("missing args: {}", union_args.missing_params().join(", ")))
     }
 }
