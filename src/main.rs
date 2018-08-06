@@ -17,7 +17,6 @@ mod config;
 mod tui;
 mod pg;
 
-
 static mut CONFIG: Option<config::Config> = None;
 
 fn main() {

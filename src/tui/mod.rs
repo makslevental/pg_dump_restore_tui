@@ -14,6 +14,8 @@ use super::pg;
 use super::CONFIG;
 use std::time::Duration;
 
+mod spinner;
+
 pub fn display() {
     let mut select = SelectView::new().h_align(HAlign::Center);
     // Read the list of cities from separate file, and fill the view with it.
@@ -50,6 +52,7 @@ pub fn display() {
             .title("Which dump do you want to restore?"),
     );
 
+    siv.set_fps(30);
     siv.run();
 }
 
