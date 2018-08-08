@@ -1,11 +1,13 @@
 use std::fs;
 use regex::RegexBuilder;
 use std::{thread, time};
+use std::sync::mpsc::{Receiver, channel};
 
 use cursive::align::HAlign;
 use cursive::event::EventResult;
 use cursive::traits::*;
-use cursive::views::{Dialog, OnEventView, SelectView, TextView, ProgressBar};
+use cursive::views::{Dialog, OnEventView, SelectView, TextView};
+use cursive::view::SizeConstraint::Fixed;
 use cursive::Cursive;
 use cursive::utils::Counter;
 
@@ -23,7 +25,7 @@ pub fn display() {
 //    let content = include_str!("./assets/cities.txt");
     let paths = fs::read_dir("./").unwrap();
 
-    let reg = RegexBuilder::new(r#"^tuf_db_postgres_dump.*"#).case_insensitive(true).build().unwrap();
+    let reg = RegexBuilder::new(r#"^*.sql$"#).case_insensitive(true).build().unwrap();
 
     select.add_all_str(
         paths
@@ -49,7 +51,7 @@ pub fn display() {
 
     siv.add_layer(
         Dialog::around(select.scrollable().fixed_size((50, 10)))
-            .title("Which dump do you want to restore?"),
+            .title("which dump do you want to restore?"),
     );
 
     siv.set_fps(30);
@@ -62,53 +64,51 @@ fn show_next_window(siv: &mut Cursive, tuf_db_dump_file: &str) {
     let n_max = 100000;
 
     siv.add_layer(Dialog::around(
-        ProgressBar::new()
+        spinner::Spinner::new()
             // We need to know how many ticks represent a full bar.
-            .range(0, n_max)
             .with_task(move |counter| {
-                fake_load(n_max, &counter);
+                load(n_max, &counter);
                 cb.send(Box::new(coffee_break));
             })
-            .full_width(),
-    ));
-//    unsafe {
-//        match CONFIG {
-//            None => println!("adsff"),
-//            Some(ref c) => {
-//                pg::dump(
-//                    c.pg_dumpall_bin.clone().unwrap(),
-//                    c.pg_host.clone().unwrap(),
-//                    c.pg_user.clone().unwrap(),
-//                    c.pg_pass.clone().unwrap(),
-//                    c.pg_port.unwrap(),
-//                )
-//            }
-//        }
-//    }
-//    siv.pop_layer();
-//    siv.pop_layer();
-//    let text = format!("{} is a great city!", city);
-//    siv.add_layer(
-//        Dialog::around(TextView::new(text)).button("Quit", |s| s.quit()),
-//    );
+            .fixed_width(20)
+    ).title("restoring database"));
 }
 
 
-fn fake_load(n_max: usize, counter: &Counter) {
-    for _ in 0..n_max {
-        thread::sleep(Duration::from_millis(5));
-        // The `counter.tick()` method increases the progress value
+fn load(n_max: usize, counter: &Counter) {
+    let (sender, receiver): (_, Receiver<i32>) = channel();
+    unsafe {
+        let pg_child = thread::spawn(move|| {
+            match CONFIG {
+                None => println!("adsff"),
+                Some(ref c) => {
+                    pg::dump(
+                        c.pg_dumpall_bin.clone().unwrap(),
+                        c.pg_host.clone().unwrap(),
+                        c.pg_user.clone().unwrap(),
+                        c.pg_pass.clone().unwrap(),
+                        c.pg_port.unwrap(),
+                        sender
+                    )
+                }
+            }
+        });
+    }
+    loop {
+        thread::sleep(Duration::from_millis(50));
         counter.tick(1);
+        let message = receiver.try_recv();
+        match message {
+            Ok(_) => break,
+            Err(_) => continue,
+        }
     }
 }
 
 
 fn coffee_break(s: &mut Cursive) {
-    // A little break before things get serious.
     s.pop_layer();
     s.add_layer(
-        Dialog::new()
-            .title("Preparation complete")
-            .content(TextView::new("Now, the real deal!").center())
+        Dialog::around(TextView::new("all done")).button("Quit", |s| s.quit()),
     );
 }

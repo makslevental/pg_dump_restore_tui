@@ -9,8 +9,9 @@ use std::fmt::Write as OtherWrite;
 use colored::*;
 use chrono::prelude::*;
 use regex::RegexSetBuilder;
+use std::sync::mpsc::Sender;
 
-pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
+pub fn dump(bin: String, host: String, user: String, pass: String, port: u32, sender: Sender<i32>) {
 //    #PGPASSWORD=***REMOVED*** PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=1 --pset pager=off -h localhost -U postgres -f dump.data.sql
     let utc: DateTime<Utc> = Utc::now();
     let dump_file_fp = format!("tuf_db_postgres_dump.{}.sql", utc.format("%Y_%m_%dT%H_%M_%S").to_string());
@@ -48,8 +49,8 @@ pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) {
 
             let mut file = File::create(&dump_file_fp).unwrap();
             file.write(new_data.as_bytes()).unwrap();
-
-            println!("{}", "\nsuccessful dump\n".green().bold().to_string())
+            sender.send(0);
+            panic!("{}", "\nsuccessful dump\n".green().bold().to_string())
         }
         _ => match str::from_utf8(&output.stderr) {
             Ok(v) => eprintln!("\n{} {}\n", "dump error:".red().bold().to_string(), v),
@@ -73,9 +74,9 @@ pub fn restore(restore_file_fp: String, bin: String, host: String, user: String,
 
 
     match output.status.code() {
-        Some(0) => println!("{}", "\nsuccessful restore\n".green().bold().to_string()),
+        Some(0) => panic!("{}", "\nsuccessful restore\n".green().bold().to_string()),
         _ => match str::from_utf8(&output.stderr) {
-            Ok(v) => eprintln!("\n{} {}\n", "restore error:".red().bold().to_string(), v),
+            Ok(v) => panic!("\n{} {}\n", "restore error:".red().bold().to_string(), v),
             Err(e) => panic!(format!("Invalid UTF-8 sequence: {}", e).red().bold().to_string())
         }
     }
