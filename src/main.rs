@@ -6,6 +6,9 @@
 extern crate serde_derive;
 #[macro_use]
 extern crate clap;
+#[macro_use]
+extern crate lazy_static;
+
 extern crate chrono;
 extern crate colored;
 extern crate cursive;
@@ -18,17 +21,9 @@ mod config;
 mod pg;
 mod tui;
 
-static mut CONFIG: Option<config::Config> = None;
 
 fn main() {
-    unsafe {
-        CONFIG = match config::load_config() {
-            Ok(c) => {
-                Some(c)
-            }
-            Err(e) => panic!("{}: {}", "error".bold().red(), e),
-        };
-    }
-
-    tui::display().unwrap();
+    // init config
+    config::CONFIG.pg_port.unwrap();
+    tui::main_display()
 }

@@ -31,16 +31,6 @@ impl fmt::Display for PgError {
     }
 }
 
-//impl error::Error for PgError {
-//    fn description(&self) -> &str {
-//        match *self {
-//            PgError::Io(ref err) => err.description(),
-//            PgError::Regex(ref err) => err.description(),
-//            PgError::Utf8(ref err) => err.description(),
-//            PgError::Postgres(ref err) => err,
-//        }
-//    }
-//}
 
 impl From<io::Error> for PgError {
     fn from(e: io::Error) -> Self {
@@ -60,10 +50,10 @@ impl From<str::Utf8Error> for PgError {
     }
 }
 
-pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) -> Result<(), PgError> {
+pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32, dump_dest_path: &str, dump_prefix: &str) -> Result<(), PgError> {
 //    #PGPASSWORD=***REMOVED*** PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=1 --pset pager=off -h localhost -U postgres -f dump.data.sql
     let utc: DateTime<Utc> = Utc::now();
-    let dump_file_fp = format!("tuf_db_postgres_dump.{}.sql", utc.format("%Y_%m_%dT%H_%M_%S").to_string());
+    let dump_file_fp = format!("{}{}.{}.sql", dump_dest_path, dump_prefix, utc.format("%Y_%m_%dT%H_%M_%S").to_string());
     let output = Command::new(&bin)
         .env("PGPASSWORD", &pass)
         .env("PGOPTIONS", "'--client-min-messages=warning'")
@@ -77,7 +67,7 @@ pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) ->
 
 
     match output.status.code() {
-        Some(0) => clean_dump(dump_file_fp, user),
+        Some(0) => clean_dump(dump_dest_path, user),
         _ => match str::from_utf8(&output.stderr) {
             Ok(v) => {
                 let command_str = format!(
@@ -89,7 +79,7 @@ pub fn dump(bin: String, host: String, user: String, pass: String, port: u32) ->
                     port,
                     dump_file_fp);
                 Err(PgError::Postgres(format!("\ndump error: {}\ndump command: {}", v, command_str)))
-            },
+            }
             Err(e) => Err(PgError::Utf8(e))
         }
     }
@@ -121,13 +111,13 @@ pub fn restore(restore_file_fp: &str, bin: &str, host: &str, user: &str, pass: &
                     port,
                     restore_file_fp);
                 Err(PgError::Postgres(format!("\nrestore error: {}\nrestore command: {}", v, command_str)))
-            },
+            }
             Err(e) => Err(PgError::Utf8(e))
         }
     }
 }
 
-fn clean_dump(dump_file_fp: String, user: String) -> Result<(), PgError> {
+fn clean_dump(dump_file_fp: &str, user: &str) -> Result<(), PgError> {
     let mut file = File::open(&dump_file_fp)?;
     let mut old_data = String::new();
     let mut new_data = String::new();

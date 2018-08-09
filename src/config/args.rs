@@ -67,5 +67,27 @@ pub fn load_args() -> ArgMatches<'static> {
                 .help("pg_dumpall bin filepath")
                 .takes_value(true)
         )
+        .arg(
+            Arg::with_name("dump_loc_path")
+                .short("l")
+                .long("dump-loc-path")
+                .value_name("DUMP_LOC_PATH")
+                .help("dump locations path")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("dump_name_prefix")
+                .long("dump-name-prefix")
+                .value_name("DUMP_NAME_PREFIX")
+                .help("dump name pattern prefix")
+                .takes_value(true)
+        )
+        .arg(
+            Arg::with_name("dump_dest_path")
+                .long("dump-dest-path")
+                .value_name("DUMP_DEST_PATH")
+                .help("dump destination path path")
+                .takes_value(true)
+        )
         .get_matches()
 }
