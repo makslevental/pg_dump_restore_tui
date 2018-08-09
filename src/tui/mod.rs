@@ -1,12 +1,15 @@
 use std::fs;
-use regex::RegexBuilder;
+use regex::{self, RegexBuilder};
 use std::{thread, time};
 use std::sync::mpsc::{Receiver, channel};
+use std::io;
+use std::fmt;
+use std::error;
 
 use cursive::align::HAlign;
 use cursive::event::EventResult;
 use cursive::traits::*;
-use cursive::views::{Dialog, OnEventView, SelectView, TextView};
+use cursive::views::{Dialog, OnEventView, SelectView, TextView, Panel};
 use cursive::view::SizeConstraint::Fixed;
 use cursive::Cursive;
 use cursive::utils::Counter;
@@ -15,17 +18,55 @@ use cursive::utils::Counter;
 use super::pg;
 use super::CONFIG;
 use std::time::Duration;
+use std::process::exit;
 
 mod spinner;
 
-pub fn display() {
+#[derive(Debug)]
+pub enum TuiError {
+    Io(io::Error),
+    Regex(regex::Error),
+
+}
+
+impl fmt::Display for TuiError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TuiError::Io(ref err) => write!(f, "IO error: {}", err),
+            TuiError::Regex(ref err) => write!(f, "Regex error: {}", err),
+        }
+    }
+}
+//
+//impl error::Error for TuiError {
+//    fn description(&self) -> &str {
+//        match *self {
+//            TuiError::Io(ref err) => err.description(),
+//            TuiError::Regex(ref err) => err.description(),
+//        }
+//    }
+//}
+
+impl From<io::Error> for TuiError {
+    fn from(e: io::Error) -> Self {
+        TuiError::Io(e)
+    }
+}
+
+impl From<regex::Error> for TuiError {
+    fn from(e: regex::Error) -> Self {
+        TuiError::Regex(e)
+    }
+}
+
+pub fn display() -> Result<(), TuiError> {
     let mut select = SelectView::new().h_align(HAlign::Center);
     // Read the list of cities from separate file, and fill the view with it.
     // (We include the file at compile-time to avoid runtime read errors.)
 //    let content = include_str!("./assets/cities.txt");
-    let paths = fs::read_dir("./").unwrap();
+    let paths = fs::read_dir("./")?;
 
-    let reg = RegexBuilder::new(r#"^*.sql$"#).case_insensitive(true).build().unwrap();
+    let reg = RegexBuilder::new(r#"^*.sql$"#).case_insensitive(true).build()?;
 
     select.add_all_str(
         paths
@@ -34,7 +75,7 @@ pub fn display() {
     );
 
     // Sets the callback for when "Enter" is pressed.
-    select.set_on_submit(show_next_window);
+    select.set_on_submit(restore);
 
     // Let's override the `j` and `k` keys for navigation
     let select = OnEventView::new(select)
@@ -56,39 +97,47 @@ pub fn display() {
 
     siv.set_fps(30);
     siv.run();
+    Ok(())
 }
 
-fn show_next_window(siv: &mut Cursive, tuf_db_dump_file: &str) {
-    let ten_millis = time::Duration::from_millis(10);
+fn restore(siv: &mut Cursive, tuf_db_dump_file: &str) {
     let cb = siv.cb_sink().clone();
-    let n_max = 100000;
-
+    let fp = tuf_db_dump_file.clone().to_owned();
     siv.add_layer(Dialog::around(
         spinner::Spinner::new()
             // We need to know how many ticks represent a full bar.
             .with_task(move |counter| {
-                load(n_max, &counter);
-                cb.send(Box::new(coffee_break));
+                let res = load(&fp, &counter);
+                match res {
+                    Ok(_) => cb.send(Box::new(|s: &mut Cursive| success("restore finished", s))),
+                    Err(pg_error) => cb.send(Box::new(|s: &mut Cursive| failure(pg_error, s)))
+                }
             })
             .fixed_width(20)
     ).title("restoring database"));
 }
 
 
-fn load(n_max: usize, counter: &Counter) {
-    let (sender, receiver): (_, Receiver<i32>) = channel();
+fn load(restore_file_fp: &str, counter: &Counter) -> Result<(), pg::PgError> {
+    let (sender, receiver): (_, Receiver<Result<(), pg::PgError>>) = channel();
+    let fp = restore_file_fp.clone().to_owned();
     unsafe {
-        let pg_child = thread::spawn(move|| {
+        thread::spawn(move || {
             match CONFIG {
-                None => println!("adsff"),
+                None => {
+                    eprintln!("how did you get here without loading a config first?");
+                    exit(1)
+                }
                 Some(ref c) => {
-                    pg::dump(
-                        c.pg_dumpall_bin.clone().unwrap(),
-                        c.pg_host.clone().unwrap(),
-                        c.pg_user.clone().unwrap(),
-                        c.pg_pass.clone().unwrap(),
-                        c.pg_port.unwrap(),
-                        sender
+                    sender.send(
+                        pg::restore(
+                            &fp,
+                            c.psql_bin.as_ref().unwrap(),
+                            c.pg_host.as_ref().unwrap(),
+                            c.pg_user.as_ref().unwrap(),
+                            c.pg_pass.as_ref().unwrap(),
+                            c.pg_port.unwrap(),
+                        )
                     )
                 }
             }
@@ -99,16 +148,34 @@ fn load(n_max: usize, counter: &Counter) {
         counter.tick(1);
         let message = receiver.try_recv();
         match message {
-            Ok(_) => break,
+            Ok(r) => return r,
             Err(_) => continue,
-        }
+        };
     }
 }
 
 
-fn coffee_break(s: &mut Cursive) {
+fn failure(pg_error: pg::PgError, s: &mut Cursive) {
     s.pop_layer();
     s.add_layer(
-        Dialog::around(TextView::new("all done")).button("Quit", |s| s.quit()),
+        Dialog::around(
+            TextView::new(pg_error.to_string())
+        ).h_align(HAlign::Center)
+            .title("restore error")
+            // This is the alignment for the button
+            .h_align(HAlign::Center)
+            .button("Quit", |s| s.quit()),
+    );
+}
+
+fn success(msg: &str, s: &mut Cursive) {
+    s.pop_layer();
+    s.add_layer(
+        Dialog::new()
+            .h_align(HAlign::Center)
+            .title("job done")
+            .content(TextView::new(msg).center())
+            .h_align(HAlign::Center)
+            .button("Quit", |s| s.quit()),
     );
 }

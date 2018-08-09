@@ -2,3 +2,5 @@ venv
 /target
 **/*.rs.bk
 .idea
+*config*
+*sql*

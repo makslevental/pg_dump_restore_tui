@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
+#![feature(try_trait)]
 #![allow(unused_imports)]
 #[macro_use]
 extern crate serde_derive;
@@ -23,12 +24,11 @@ fn main() {
     unsafe {
         CONFIG = match config::load_config() {
             Ok(c) => {
-                println!("{:#?}", c);
                 Some(c)
             }
             Err(e) => panic!("{}: {}", "error".bold().red(), e),
         };
     }
 
-    tui::display()
+    tui::display().unwrap();
 }

@@ -1,5 +1,10 @@
+
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::option;
+use std::fmt;
+use std::error;
+
 use toml;
 
 mod args;
@@ -40,17 +45,69 @@ zoom_and_enhance! {
     }
 }
 
-pub fn load_config() -> Result<Config, String> {
+
+#[derive(Debug)]
+pub enum ConfigError {
+    Arg(Option<String>),
+    Io(io::Error),
+    Toml(toml::de::Error)
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ConfigError::Io(ref err) => write!(f, "IO error: {}", err),
+            ConfigError::Arg(ref err) => {
+                match err {
+                    Some(ref s) => write!(f, "Arg error: {}", s),
+                    None => write!(f, "Missing arg error (not sure which)"),
+                }
+            },
+            ConfigError::Toml(ref err) => write!(f, "TOML error: {}", err),
+        }
+    }
+}
+
+//impl error::Error for ConfigError {
+//    fn description(&self) -> &str {
+//        match *self {
+//            ConfigError::Io(ref err) => err.description(),
+//            ConfigError::Arg(ref err) => {
+//                match err {
+//                    Some(s) => &format!("Arg error: {}", s),
+//                    None => "Missing arg error (not sure which)",
+//                }
+//            },
+//            ConfigError::Toml(ref err) => err.description(),
+//        }
+//    }
+//}
+
+impl From<io::Error> for ConfigError {
+    fn from(e: io::Error) -> Self {
+        ConfigError::Io(e)
+    }
+}
+
+impl From<option::NoneError> for ConfigError {
+    fn from(e: option::NoneError) -> Self {
+        ConfigError::Arg(None)
+    }
+}
+
+impl From<toml::de::Error> for ConfigError {
+    fn from(e: toml::de::Error) -> Self {
+        ConfigError::Toml(e)
+    }
+}
+
+pub fn load_config() -> Result<Config, ConfigError> {
     let args = args::load_args();
 
-    let mut config_file =
-        File::open(args.value_of("config_file").unwrap())
-            .map_err(|e| format!("config_file: {}", e.to_string()))?;
+    let mut config_file = File::open(args.value_of("config_file")?)?;
     let mut config_str = String::new();
-    config_file.read_to_string(&mut config_str);
-    let config_from_file: Config =
-        toml::from_str(&config_str)
-            .map_err(|e| format!("config_file: {}", e.to_string()))?;
+    config_file.read_to_string(&mut config_str)?;
+    let config_from_file: Config = toml::from_str(&config_str)?;
 
     let config_from_args = Config {
         pg_host: args.value_of("pg_host").map(|v| v.to_string()),
@@ -77,6 +134,6 @@ pub fn load_config() -> Result<Config, String> {
 
     match union_args.missing_params().len() {
         0 => Ok(union_args),
-        _ => Err(format!("missing args: {}", union_args.missing_params().join(", ")))
+        _ => Err(ConfigError::Arg(Some(format!("missing args: {}", union_args.missing_params().join(", ")))))
     }
 }
