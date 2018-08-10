@@ -91,7 +91,7 @@ fn restore_choices_display(siv: &mut Cursive) {
             spinner::Spinner::new()
                 // We need to know how many ticks represent a full bar.
                 .with_task(move |counter| {
-                    let res = restore(&counter);
+                    let res = restore(&fp, &counter);
                     match res {
                         Ok(_) => cb.send(Box::new(|s: &mut Cursive| success("restore finished", s))),
                         Err(pg_error) => cb.send(Box::new(|s: &mut Cursive| failure(pg_error, s)))
@@ -102,14 +102,18 @@ fn restore_choices_display(siv: &mut Cursive) {
     });
 
     siv.add_layer(
-        Dialog::around(select.scrollable().fixed_size((50, 10)))
-            .title("which dump do you want to restore?"),
+        Dialog::around(
+            select.scrollable().fixed_size((50, 10))
+        )
+            .title("which dump do you want to restore?")
+            .button("Back", |s| { s.pop_layer(); })
+            .h_align(HAlign::Center)
     );
 }
 
-fn restore(counter: &Counter) -> Result<(), pg::PgError> {
+fn restore(dump_file_selection: &str, counter: &Counter) -> Result<(), pg::PgError> {
     let (sender, receiver): (_, Receiver<Result<(), pg::PgError>>) = channel();
-    let fp = CONFIG.dump_loc_path.as_ref().unwrap();
+    let fp = format!("{}{}", CONFIG.dump_loc_path.as_ref().unwrap(), dump_file_selection);
     thread::spawn(move || {
         sender.send(
             pg::restore(
@@ -143,7 +147,7 @@ fn dump(siv: &mut Cursive) {
                 thread::spawn(move || {
                     sender.send(
                         pg::dump(
-                            CONFIG.psql_bin.as_ref().unwrap(),
+                            CONFIG.pg_dumpall_bin.as_ref().unwrap(),
                             CONFIG.pg_host.as_ref().unwrap(),
                             CONFIG.pg_user.as_ref().unwrap(),
                             CONFIG.pg_pass.as_ref().unwrap(),
@@ -175,9 +179,11 @@ fn failure(pg_error: pg::PgError, s: &mut Cursive) {
     s.pop_layer();
     s.add_layer(
         Dialog::around(
-            TextView::new(pg_error.to_string())
+            TextView::new(pg_error.to_string()).fixed_width(200)
         ).h_align(HAlign::Center)
             .title("restore error")
+            .h_align(HAlign::Left)
+            .button("Back", |s| { s.pop_layer(); })
             .h_align(HAlign::Center)
             .button("Quit", |s| s.quit()),
     );
@@ -190,6 +196,8 @@ fn success(msg: &str, s: &mut Cursive) {
             .h_align(HAlign::Center)
             .title("job done")
             .content(TextView::new(msg).center())
+            .h_align(HAlign::Left)
+            .button("Back", |s| { s.pop_layer(); })
             .h_align(HAlign::Center)
             .button("Quit", |s| s.quit()),
     );

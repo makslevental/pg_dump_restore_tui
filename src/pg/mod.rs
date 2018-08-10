@@ -51,15 +51,13 @@ impl From<str::Utf8Error> for PgError {
 }
 
 pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32, dump_dest_path: &str, dump_prefix: &str) -> Result<(), PgError> {
-//    #PGPASSWORD=***REMOVED*** PGOPTIONS='--client-min-messages=warning' psql -v ON_ERROR_STOP=1 --pset pager=off -h localhost -U postgres -f dump.data.sql
     let utc: DateTime<Utc> = Utc::now();
     let dump_file_fp = format!("{}{}.{}.sql", dump_dest_path, dump_prefix, utc.format("%Y_%m_%dT%H_%M_%S").to_string());
     let output = Command::new(&bin)
         .env("PGPASSWORD", &pass)
-        .env("PGOPTIONS", "'--client-min-messages=warning'")
         .args(&["-h", &host])
-        .arg("-c")
         .args(&["-U", &user])
+        .arg("-c")
         .args(&["-p", &port.to_string()])
         .args(&["-f", &dump_file_fp])
         .output()
@@ -67,11 +65,11 @@ pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32, dump_dest_
 
 
     match output.status.code() {
-        Some(0) => clean_dump(dump_dest_path, user),
+        Some(0) => clean_dump(&dump_file_fp, user),
         _ => match str::from_utf8(&output.stderr) {
             Ok(v) => {
                 let command_str = format!(
-                    "PGPASSWORD={} PGOPTIONS=--client-min-messages=warning {} -v ON_ERROR_STOP=1 -h {} -c -U {} -p {} -f {}",
+                    "PGPASSWORD={} {} -v ON_ERROR_STOP=1 -h {} -U {} -p {} -f {}",
                     pass,
                     bin,
                     host,
@@ -86,10 +84,8 @@ pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32, dump_dest_
 }
 
 pub fn restore(restore_file_fp: &str, bin: &str, host: &str, user: &str, pass: &str, port: u32) -> Result<(), PgError> {
-    let utc: DateTime<Utc> = Utc::now();
     let output = Command::new(bin)
         .env("PGPASSWORD", pass)
-        .env("PGOPTIONS", "--client-min-messages=warning")
         .args(&["-v", "ON_ERROR_STOP=1"])
         .args(&["-h", host])
         .args(&["-U", user])
@@ -103,7 +99,7 @@ pub fn restore(restore_file_fp: &str, bin: &str, host: &str, user: &str, pass: &
         _ => match str::from_utf8(&output.stderr) {
             Ok(v) => {
                 let command_str = format!(
-                    "PGPASSWORD={} PGOPTIONS=--client-min-messages=warning {} -v ON_ERROR_STOP=1 -h {} -U {} -p {} -f {}",
+                    "PGPASSWORD={} {} -v ON_ERROR_STOP=1 -h {} -U {} -p {} -f {}",
                     pass,
                     bin,
                     host,
@@ -137,5 +133,6 @@ fn clean_dump(dump_file_fp: &str, user: &str) -> Result<(), PgError> {
 
     let mut file = File::create(&dump_file_fp)?;
     file.write(new_data.as_bytes())?;
+    drop(file);
     Ok(())
 }
