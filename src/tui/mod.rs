@@ -172,7 +172,7 @@ fn dump(siv: &mut Cursive) {
                 }
             })
             .fixed_width(20)
-    ).title("restoring database"));
+    ).title("dumping database"));
 }
 
 fn failure(pg_error: pg::PgError, s: &mut Cursive) {

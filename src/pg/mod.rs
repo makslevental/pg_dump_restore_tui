@@ -4,7 +4,7 @@ use std::env;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::fmt::Write as OtherWrite;
-use regex::{self, RegexSetBuilder};
+use regex::{self, RegexSetBuilder, Regex};
 use std::error;
 use std::fmt;
 use std::sync::mpsc::Sender;
@@ -120,19 +120,23 @@ fn clean_dump(dump_file_fp: &str, user: &str) -> Result<(), PgError> {
     file.read_to_string(&mut old_data)?;
     drop(file);
 
-    let set = RegexSetBuilder::new(&[
+    let running_role_reg = RegexSetBuilder::new(&[
         &format!(r#"CREATE ROLE {};"#, user),
         &format!(r#"DROP ROLE {};"#, user),
         &format!(r#"ALTER ROLE {} .*;"#, user)
     ]).case_insensitive(true).build()?;
 
+    let connect_reg = Regex::new(r"\\connect (?P<db>\w+)")?;
     old_data
         .lines()
-        .filter(|line| !set.is_match(line))
+        .filter(|line| !running_role_reg.is_match(line))
+        .map(|line| match connect_reg.captures(line) {
+            Some(caps) => format!("\\connect {}\nSET session_replication_role = replica;\n", &caps["db"]),
+            None => line.to_string()
+        })
         .for_each(|x| write!(new_data, "{}\n", x).unwrap());
 
     let mut file = File::create(&dump_file_fp)?;
     file.write(new_data.as_bytes())?;
-    drop(file);
     Ok(())
 }
