@@ -65,7 +65,10 @@ pub fn dump(bin: &str, host: &str, user: &str, pass: &str, port: u32, dump_dest_
 
 
     match output.status.code() {
-        Some(0) => clean_dump(&dump_file_fp, user),
+        Some(0) => {
+            clean_dump(&dump_file_fp, user);
+            clean_dump(&dump_file_fp, "postgres")
+        },
         _ => match str::from_utf8(&output.stderr) {
             Ok(v) => {
                 let command_str = format!(
@@ -89,6 +92,8 @@ pub fn restore(restore_file_fp: &str, bin: &str, host: &str, user: &str, pass: &
         .args(&["-v", "ON_ERROR_STOP=1"])
         .args(&["-h", host])
         .args(&["-U", user])
+        // https://stackoverflow.com/questions/17633422/psql-fatal-database-user-does-not-exist
+        .args(&["-d", "template1"])
         .args(&["-p", &port.to_string()])
         .args(&["-f", restore_file_fp])
         .output()
